@@ -55,18 +55,15 @@ const WeatherTest = () => {
         <h3>API Configuration</h3>
         {apiConfig && (
           <div>
-            <p><strong>Has API Key:</strong> {apiConfig.hasApiKey ? '✅ Yes' : '❌ No'}</p>
-            <p><strong>Valid Key:</strong> {apiConfig.isValidKey ? '✅ Yes' : '❌ No'}</p>
-            <p><strong>API Key:</strong> {apiConfig.apiKeyPrefix}</p>
-            <p><strong>Base URL:</strong> {apiConfig.baseUrl}</p>
-            <div>
-              <strong>Recommendations:</strong>
-              <ul>
-                {apiConfig.recommendation.map((rec, index) => (
-                  <li key={index}>{rec}</li>
-                ))}
-              </ul>
-            </div>
+            <p><strong>Provider:</strong> {apiConfig.apiProvider || 'Open-Meteo'}</p>
+            <p><strong>Weather API:</strong> {apiConfig.weatherBaseUrl}</p>
+            <p><strong>Geocoding API:</strong> {apiConfig.geocodingBaseUrl}</p>
+            <p><strong>Features:</strong></p>
+            <ul>
+              {(apiConfig.features || []).map((feature, index) => (
+                <li key={index}>{feature}</li>
+              ))}
+            </ul>
           </div>
         )}\n      </div>
 

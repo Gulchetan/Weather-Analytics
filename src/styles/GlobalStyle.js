@@ -7,12 +7,79 @@ const GlobalStyle = createGlobalStyle`
     box-sizing: border-box;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     line-height: 1.6;
     color: ${props => props.theme.colors.text};
     background-color: ${props => props.theme.colors.background};
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Keyframe animations */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .App {
@@ -81,13 +148,47 @@ const GlobalStyle = createGlobalStyle`
     margin: 1rem 0;
   }
 
-  .success {
-    color: ${props => props.theme.colors.success};
-    text-align: center;
-    padding: 1rem;
-    background-color: ${props => props.theme.colors.successBg};
-    border-radius: 8px;
-    margin: 1rem 0;
+  /* Utility classes */
+  .animate-spin {
+    animation: spin 1s linear infinite;
+  }
+
+  .animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-in-out;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: ${props => props.theme.colors.borderLight};
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: ${props => props.theme.colors.border};
+    border-radius: 4px;
+    
+    &:hover {
+      background: ${props => props.theme.colors.borderDark};
+    }
+  }
+
+  /* Selection */
+  ::selection {
+    background: ${props => props.theme.colors.primary}30;
+    color: ${props => props.theme.colors.text};
   }
 `;
 

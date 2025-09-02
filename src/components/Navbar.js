@@ -1,7 +1,17 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
-import { FiCloud, FiBarChart2, FiMenu, FiBell } from 'react-icons/fi';
+import { 
+  FiBarChart2, 
+  FiMenu, 
+  FiBell, 
+  FiSearch,
+  FiHome,
+  FiFileText,
+  FiSettings,
+  FiInfo,
+  FiMessageCircle
+} from 'react-icons/fi';
 import { useApp } from '../context/AppContext';
 
 const SidebarContainer = styled.nav`
@@ -152,7 +162,13 @@ const Navbar = () => {
   const { sidebarOpen, toggleSidebar, notifications } = useApp();
 
   const navItems = [
-    { path: '/', label: 'Current Weather', icon: FiCloud },
+    { path: '/', label: 'Dashboard', icon: FiHome },
+    { path: '/analytics', label: 'Weather Analytics', icon: FiBarChart2 },
+    { path: '/search', label: 'City Search', icon: FiSearch },
+    { path: '/reports', label: 'Reports', icon: FiFileText },
+    { path: '/chatbot', label: 'AI Assistant', icon: FiMessageCircle },
+    { path: '/settings', label: 'Settings', icon: FiSettings },
+    { path: '/about', label: 'About', icon: FiInfo },
   ];
 
   return (
@@ -176,7 +192,7 @@ const Navbar = () => {
       
       <SidebarContainer isOpen={sidebarOpen}>
         <Header>
-          <Logo>Weather Analytics</Logo>
+          <Logo>Weather Pro</Logo>
         </Header>
         
         <NavList>

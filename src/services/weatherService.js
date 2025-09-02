@@ -1,28 +1,22 @@
 import axios from 'axios';
 
-// API Configuration from environment variables
-const API_KEY = process.env.REACT_APP_WEATHER_API_KEY || 'demo_key';
-const BASE_URL = process.env.REACT_APP_WEATHER_BASE_URL || 'https://api.openweathermap.org/data/2.5';
+// API Configuration for Open-Meteo (free weather API)
+const WEATHER_BASE_URL = 'https://api.open-meteo.com/v1';
+const GEOCODING_BASE_URL = 'https://geocoding-api.open-meteo.com/v1';
 const GEO_API_URL = process.env.REACT_APP_GEO_API_URL || 'http://ip-api.com/json';
 const WEATHER_API_TIMEOUT = parseInt(process.env.REACT_APP_WEATHER_API_TIMEOUT) || 10000;
 const GEO_API_TIMEOUT = parseInt(process.env.REACT_APP_GEO_API_TIMEOUT) || 5000;
 
-// Function to check if API key is valid
-const isValidApiKey = (key) => {
-  if (!key || key === 'demo_key' || key === '') return false;
-  // OpenWeatherMap API keys are typically 32 characters long and alphanumeric
-  if (key.length !== 32) return false;
-  return /^[a-f0-9]{32}$/i.test(key);
-};
-
-// Create axios instance for weather API
+// Create axios instance for Open-Meteo weather API
 const weatherApi = axios.create({
-  baseURL: BASE_URL,
+  baseURL: WEATHER_BASE_URL,
   timeout: WEATHER_API_TIMEOUT,
-  params: {
-    appid: API_KEY,
-    units: 'metric', // Use Celsius
-  },
+});
+
+// Create axios instance for Open-Meteo geocoding API
+const geocodingApi = axios.create({
+  baseURL: GEOCODING_BASE_URL,
+  timeout: WEATHER_API_TIMEOUT,
 });
 
 // Create axios instance for IP geolocation
@@ -40,50 +34,110 @@ const getDefaultCities = () => {
   return ['London', 'New York', 'Tokyo', 'Paris', 'Sydney', 'Berlin', 'Moscow', 'Cairo', 'Mumbai', 'Beijing'];
 };
 
-// For demo purposes, we'll create mock weather data when API key is not available
-const generateMockWeatherData = (city) => {
-  const cities = {
-    'London': { temp: 15, humidity: 65, windSpeed: 12, description: 'Partly cloudy' },
-    'New York': { temp: 22, humidity: 58, windSpeed: 8, description: 'Sunny' },
-    'Tokyo': { temp: 18, humidity: 72, windSpeed: 6, description: 'Light rain' },
-    'Paris': { temp: 16, humidity: 60, windSpeed: 10, description: 'Overcast' },
-    'Sydney': { temp: 25, humidity: 45, windSpeed: 15, description: 'Clear' },
+// Helper function to get coordinates for a city using Open-Meteo Geocoding API
+const getCityCoordinates = async (cityName) => {
+  try {
+    console.log('Getting coordinates for city:', cityName);
+    const response = await geocodingApi.get('/search', {
+      params: {
+        name: cityName,
+        count: 1,
+        language: 'en',
+        format: 'json'
+      }
+    });
+    
+    if (response.data && response.data.results && response.data.results.length > 0) {
+      const result = response.data.results[0];
+      return {
+        latitude: result.latitude,
+        longitude: result.longitude,
+        name: result.name,
+        country: result.country,
+        admin1: result.admin1,
+        timezone: result.timezone
+      };
+    } else {
+      throw new Error(`City "${cityName}" not found`);
+    }
+  } catch (error) {
+    throw new Error(`Failed to get coordinates for ${cityName}: ${error.message}`);
+  }
+};
+
+// Helper function to map Open-Meteo weather codes to descriptions
+const getWeatherDescription = (weatherCode) => {
+  const weatherCodes = {
+    0: { main: 'Clear', description: 'Clear sky', icon: '01d' },
+    1: { main: 'Clear', description: 'Mainly clear', icon: '01d' },
+    2: { main: 'Clouds', description: 'Partly cloudy', icon: '02d' },
+    3: { main: 'Clouds', description: 'Overcast', icon: '03d' },
+    45: { main: 'Fog', description: 'Fog', icon: '50d' },
+    48: { main: 'Fog', description: 'Depositing rime fog', icon: '50d' },
+    51: { main: 'Drizzle', description: 'Light drizzle', icon: '09d' },
+    53: { main: 'Drizzle', description: 'Moderate drizzle', icon: '09d' },
+    55: { main: 'Drizzle', description: 'Dense drizzle', icon: '09d' },
+    56: { main: 'Drizzle', description: 'Light freezing drizzle', icon: '09d' },
+    57: { main: 'Drizzle', description: 'Dense freezing drizzle', icon: '09d' },
+    61: { main: 'Rain', description: 'Slight rain', icon: '10d' },
+    63: { main: 'Rain', description: 'Moderate rain', icon: '10d' },
+    65: { main: 'Rain', description: 'Heavy rain', icon: '10d' },
+    66: { main: 'Rain', description: 'Light freezing rain', icon: '13d' },
+    67: { main: 'Rain', description: 'Heavy freezing rain', icon: '13d' },
+    71: { main: 'Snow', description: 'Slight snow fall', icon: '13d' },
+    73: { main: 'Snow', description: 'Moderate snow fall', icon: '13d' },
+    75: { main: 'Snow', description: 'Heavy snow fall', icon: '13d' },
+    77: { main: 'Snow', description: 'Snow grains', icon: '13d' },
+    80: { main: 'Rain', description: 'Slight rain showers', icon: '09d' },
+    81: { main: 'Rain', description: 'Moderate rain showers', icon: '09d' },
+    82: { main: 'Rain', description: 'Violent rain showers', icon: '09d' },
+    85: { main: 'Snow', description: 'Slight snow showers', icon: '13d' },
+    86: { main: 'Snow', description: 'Heavy snow showers', icon: '13d' },
+    95: { main: 'Thunderstorm', description: 'Thunderstorm', icon: '11d' },
+    96: { main: 'Thunderstorm', description: 'Thunderstorm with slight hail', icon: '11d' },
+    99: { main: 'Thunderstorm', description: 'Thunderstorm with heavy hail', icon: '11d' }
   };
   
-  const defaultData = { temp: 20, humidity: 50, windSpeed: 10, description: 'Moderate' };
-  const cityData = cities[city] || defaultData;
+  return weatherCodes[weatherCode] || { main: 'Unknown', description: 'Unknown weather', icon: '01d' };
+};
+
+// Helper function to convert Open-Meteo data to OpenWeatherMap-like format
+const convertToOpenWeatherFormat = (openMeteoData, cityInfo) => {
+  const current = openMeteoData.current;
+  const weatherInfo = getWeatherDescription(current.weather_code);
   
   return {
-    name: city,
+    name: cityInfo.name,
     main: {
-      temp: cityData.temp + (Math.random() - 0.5) * 4, // Add some variation
-      humidity: cityData.humidity + Math.floor((Math.random() - 0.5) * 20),
-      pressure: 1013 + Math.floor((Math.random() - 0.5) * 40),
-      feels_like: cityData.temp + (Math.random() - 0.5) * 6,
+      temp: Math.round(current.temperature_2m * 10) / 10,
+      humidity: current.relative_humidity_2m,
+      pressure: current.surface_pressure,
+      feels_like: Math.round(current.apparent_temperature * 10) / 10,
     },
     wind: {
-      speed: cityData.windSpeed + (Math.random() - 0.5) * 8,
-      deg: Math.floor(Math.random() * 360),
+      speed: Math.round(current.wind_speed_10m * 10) / 10,
+      deg: current.wind_direction_10m,
     },
     weather: [{
-      main: cityData.description.split(' ')[0],
-      description: cityData.description,
-      icon: '01d',
+      main: weatherInfo.main,
+      description: weatherInfo.description,
+      icon: weatherInfo.icon,
     }],
-    visibility: 10000,
+    visibility: current.visibility || 10000,
     clouds: {
-      all: Math.floor(Math.random() * 100),
+      all: current.cloud_cover || 0,
     },
-    dt: Date.now() / 1000,
+    dt: Math.floor(new Date(current.time).getTime() / 1000),
     sys: {
-      country: 'Demo',
-      sunrise: Date.now() / 1000 - 3600,
-      sunset: Date.now() / 1000 + 3600,
+      country: cityInfo.country,
+      sunrise: current.sunrise ? Math.floor(new Date(current.sunrise).getTime() / 1000) : Date.now() / 1000 - 3600,
+      sunset: current.sunset ? Math.floor(new Date(current.sunset).getTime() / 1000) : Date.now() / 1000 + 3600,
     },
     coord: {
-      lon: (Math.random() - 0.5) * 360,
-      lat: (Math.random() - 0.5) * 180,
+      lon: cityInfo.longitude,
+      lat: cityInfo.latitude,
     },
+    timezone: cityInfo.timezone,
   };
 };
 
@@ -91,17 +145,18 @@ export const weatherService = {
   // Debug function to check API configuration
   checkApiConfiguration: () => {
     const config = {
-      hasApiKey: !!API_KEY && API_KEY !== 'demo_key' && API_KEY !== '',
-      isValidKey: isValidApiKey(API_KEY),
-      apiKeyPrefix: API_KEY ? API_KEY.substring(0, 8) + '...' : 'Not set',
-      baseUrl: BASE_URL,
+      apiProvider: 'Open-Meteo',
+      weatherBaseUrl: WEATHER_BASE_URL,
+      geocodingBaseUrl: GEOCODING_BASE_URL,
       geoApiUrl: GEO_API_URL,
       timeout: WEATHER_API_TIMEOUT,
-      recommendation: !isValidApiKey(API_KEY) ? [
-        'Get a valid API key from https://openweathermap.org/api',
-        'Update REACT_APP_WEATHER_API_KEY in .env file',
-        'Restart development server'
-      ] : ['API key looks good!']
+      features: [
+        'Free API (no key required)',
+        'High accuracy weather data',
+        'Hourly and daily forecasts',
+        'Global coverage',
+        'Real-time data'
+      ]
     };
     console.log('Weather Service Configuration:', config);
     return config;
@@ -110,45 +165,37 @@ export const weatherService = {
   // Test API connection
   testApiConnection: async () => {
     try {
-      if (!isValidApiKey(API_KEY)) {
-        return {
-          success: false,
-          error: 'No valid API key configured or invalid key format',
-          usingMockData: true,
-          instructions: [
-            'Visit https://openweathermap.org/api',
-            'Sign up for a free account',
-            'Get your API key',
-            'Update REACT_APP_WEATHER_API_KEY in .env file',
-            'Restart the development server'
-          ]
-        };
-      }
-
-      console.log('Testing API connection with London...');
-      const response = await weatherApi.get('/weather', {
-        params: { q: 'London' }
+      console.log('Testing Open-Meteo API connection with London...');
+      const coords = await getCityCoordinates('London');
+      
+      await weatherApi.get('/forecast', {
+        params: {
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          current: 'temperature_2m,relative_humidity_2m,weather_code',
+          timezone: 'auto'
+        }
       });
       
       return {
         success: true,
-        message: 'API connection successful',
-        data: response.data.name,
-        usingMockData: false
+        message: 'Open-Meteo API connection successful',
+        data: `${coords.name}, ${coords.country}`,
+        usingMockData: false,
+        provider: 'Open-Meteo'
       };
     } catch (error) {
       return {
         success: false,
-        error: error.response?.data?.message || error.message,
-        status: error.response?.status,
-        usingMockData: true,
-        instructions: error.response?.status === 401 ? [
-          'Your API key is invalid',
-          'Visit https://openweathermap.org/api',
-          'Get a valid API key',
-          'Update REACT_APP_WEATHER_API_KEY in .env file',
-          'Restart the development server'
-        ] : []
+        error: error.message,
+        usingMockData: false,
+        provider: 'Open-Meteo',
+        instructions: [
+          'Open-Meteo is a free API service',
+          'No API key required',
+          'Check your internet connection',
+          'Visit https://open-meteo.com for more information'
+        ]
       };
     }
   },
@@ -188,32 +235,41 @@ export const weatherService = {
   getCurrentWeatherByCoords: async (lat, lon) => {
     try {
       console.log('Fetching weather data for coordinates:', lat, lon);
-      console.log('Using API key:', API_KEY ? API_KEY.substring(0, 8) + '...' : 'No API key');
-      console.log('API key is valid:', isValidApiKey(API_KEY));
       
-      if (!isValidApiKey(API_KEY)) {
-        console.warn('No valid API key provided or invalid key format. Using mock weather data for demo purposes.');
-        console.log('To use real weather data:');
-        console.log('1. Visit https://openweathermap.org/api');
-        console.log('2. Sign up for a free account');
-        console.log('3. Get your API key');
-        console.log('4. Update REACT_APP_WEATHER_API_KEY in your .env file');
-        console.log('5. Restart the development server');
-        await new Promise(resolve => setTimeout(resolve, 500));
-        return generateMockWeatherData('Your Location');
-      }
-      
-      const response = await weatherApi.get('/weather', {
-        params: { lat, lon }
+      const response = await weatherApi.get('/forecast', {
+        params: {
+          latitude: lat,
+          longitude: lon,
+          current: [
+            'temperature_2m',
+            'relative_humidity_2m',
+            'apparent_temperature',
+            'weather_code',
+            'surface_pressure',
+            'wind_speed_10m',
+            'wind_direction_10m',
+            'cloud_cover',
+            'visibility'
+          ].join(','),
+          timezone: 'auto'
+        }
       });
-      console.log('Successfully fetched weather data from API');
-      return response.data;
+      
+      console.log('Successfully fetched weather data from Open-Meteo API');
+      
+      // Convert Open-Meteo format to match expected format
+      const cityInfo = {
+        name: 'Your Location',
+        country: 'Unknown',
+        latitude: lat,
+        longitude: lon,
+        timezone: response.data.timezone
+      };
+      
+      return convertToOpenWeatherFormat(response.data, cityInfo);
     } catch (error) {
-      console.error('Weather API error:', error.response?.data?.message || error.message);
-      if (error.response?.status === 401) {
-        throw new Error('Invalid API key. Please check your OpenWeatherMap API key in the .env file.');
-      }
-      throw new Error(`Failed to fetch weather data: ${error.response?.data?.message || error.message}`);
+      console.error('Open-Meteo API error:', error.message);
+      throw new Error(`Failed to fetch weather data: ${error.message}`);
     }
   },
   // Normalize city name for consistent searching
@@ -264,44 +320,47 @@ export const weatherService = {
       const normalizedCity = validation.normalizedName;
       
       console.log('Fetching weather data for city:', normalizedCity);
-      console.log('Using API key:', API_KEY ? API_KEY.substring(0, 8) + '...' : 'No API key');
-      console.log('API key is valid:', isValidApiKey(API_KEY));
       
-      // If no API key or invalid key, return mock data
-      if (!isValidApiKey(API_KEY)) {
-        console.warn('No valid API key provided or invalid key format. Using mock weather data for demo purposes.');
-        console.log('To use real weather data:');
-        console.log('1. Visit https://openweathermap.org/api');
-        console.log('2. Sign up for a free account');
-        console.log('3. Get your API key');
-        console.log('4. Update REACT_APP_WEATHER_API_KEY in your .env file');
-        console.log('5. Restart the development server');
-        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
-        return generateMockWeatherData(normalizedCity);
-      }
+      // Get coordinates for the city
+      const cityInfo = await getCityCoordinates(normalizedCity);
+      console.log('Found coordinates:', cityInfo);
       
-      const response = await weatherApi.get('/weather', {
-        params: { q: normalizedCity }
+      // Get weather data using coordinates
+      const response = await weatherApi.get('/forecast', {
+        params: {
+          latitude: cityInfo.latitude,
+          longitude: cityInfo.longitude,
+          current: [
+            'temperature_2m',
+            'relative_humidity_2m',
+            'apparent_temperature',
+            'weather_code',
+            'surface_pressure',
+            'wind_speed_10m',
+            'wind_direction_10m',
+            'cloud_cover',
+            'visibility'
+          ].join(','),
+          timezone: 'auto'
+        }
       });
-      console.log('Successfully fetched weather data from API for:', normalizedCity);
-      return response.data;
+      
+      console.log('Successfully fetched weather data from Open-Meteo API for:', normalizedCity);
+      return convertToOpenWeatherFormat(response.data, cityInfo);
     } catch (error) {
-      console.error('Weather API error:', error.response?.data?.message || error.message);
-      if (error.response?.status === 401) {
-        throw new Error('Invalid API key. Please check your OpenWeatherMap API key in the .env file.');
-      }
-      if (error.response?.status === 404) {
+      console.error('Weather API error:', error.message);
+      if (error.message.includes('not found')) {
         throw new Error(`City "${city}" not found. Please check the spelling and try again.`);
       }
       // If it's a validation error, throw it as is
       if (!error.response) {
         throw error;
       }
-      throw new Error(`Failed to fetch weather data for ${city}: ${error.response?.data?.message || error.message}`);
+      throw new Error(`Failed to fetch weather data for ${city}: ${error.message}`);
     }
   },
 
-  // Get weather forecast for a city (5 days)
+  // Get weather forecast for a city (7 days)
   getWeatherForecast: async (city) => {
     try {
       // Validate city name first
@@ -313,66 +372,80 @@ export const weatherService = {
       const normalizedCity = validation.normalizedName;
       
       console.log('Fetching forecast data for city:', normalizedCity);
-      console.log('Using API key:', API_KEY ? API_KEY.substring(0, 8) + '...' : 'No API key');
-      console.log('API key is valid:', isValidApiKey(API_KEY));
       
-      if (!isValidApiKey(API_KEY)) {
-        console.warn('No valid API key provided or invalid key format. Using mock forecast data for demo purposes.');
-        console.log('To use real weather data:');
-        console.log('1. Visit https://openweathermap.org/api');
-        console.log('2. Sign up for a free account');
-        console.log('3. Get your API key');
-        console.log('4. Update REACT_APP_WEATHER_API_KEY in your .env file');
-        console.log('5. Restart the development server');
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Generate 5-day mock forecast
-        const forecast = {
-          city: { name: normalizedCity },
-          list: [],
-        };
-        
-        for (let i = 0; i < 40; i++) { // 5 days * 8 forecasts per day (3-hour intervals)
-          const baseTemp = 20 + Math.sin(i / 8) * 10; // Daily temperature cycle
-          forecast.list.push({
-            dt: Date.now() / 1000 + i * 3 * 3600, // 3-hour intervals
-            main: {
-              temp: baseTemp + (Math.random() - 0.5) * 6,
-              humidity: 50 + Math.floor((Math.random() - 0.5) * 40),
-              pressure: 1013 + Math.floor((Math.random() - 0.5) * 40),
-            },
-            weather: [{
-              main: ['Clear', 'Clouds', 'Rain'][Math.floor(Math.random() * 3)],
-              description: 'Weather forecast',
-              icon: '01d',
-            }],
-            wind: {
-              speed: 5 + Math.random() * 10,
-            },
-          });
-        }
-        
-        return forecast;
-      }
+      // Get coordinates for the city
+      const cityInfo = await getCityCoordinates(normalizedCity);
+      console.log('Found coordinates for forecast:', cityInfo);
       
+      // Get 7-day hourly forecast from Open-Meteo
       const response = await weatherApi.get('/forecast', {
-        params: { q: normalizedCity }
+        params: {
+          latitude: cityInfo.latitude,
+          longitude: cityInfo.longitude,
+          hourly: [
+            'temperature_2m',
+            'relative_humidity_2m',
+            'weather_code',
+            'surface_pressure',
+            'wind_speed_10m',
+            'wind_direction_10m'
+          ].join(','),
+          timezone: 'auto',
+          forecast_days: 7
+        }
       });
-      console.log('Successfully fetched forecast data from API for:', normalizedCity);
-      return response.data;
-    } catch (error) {
-      console.error('Weather forecast API error:', error.response?.data?.message || error.message);
-      if (error.response?.status === 401) {
-        throw new Error('Invalid API key. Please check your OpenWeatherMap API key in the .env file.');
+      
+      console.log('Successfully fetched forecast data from Open-Meteo API for:', normalizedCity);
+      
+      // Convert to OpenWeatherMap-like 5-day forecast format (3-hour intervals)
+      const hourlyData = response.data.hourly;
+      const forecast = {
+        city: { 
+          name: cityInfo.name,
+          country: cityInfo.country,
+          coord: {
+            lat: cityInfo.latitude,
+            lon: cityInfo.longitude
+          }
+        },
+        list: [],
+      };
+      
+      // Take every 3rd hour to simulate 3-hour intervals (like OpenWeatherMap)
+      for (let i = 0; i < hourlyData.time.length && forecast.list.length < 40; i += 3) {
+        const weatherInfo = getWeatherDescription(hourlyData.weather_code[i]);
+        
+        forecast.list.push({
+          dt: Math.floor(new Date(hourlyData.time[i]).getTime() / 1000),
+          main: {
+            temp: Math.round(hourlyData.temperature_2m[i] * 10) / 10,
+            humidity: hourlyData.relative_humidity_2m[i],
+            pressure: hourlyData.surface_pressure[i],
+          },
+          weather: [{
+            main: weatherInfo.main,
+            description: weatherInfo.description,
+            icon: weatherInfo.icon,
+          }],
+          wind: {
+            speed: Math.round(hourlyData.wind_speed_10m[i] * 10) / 10,
+            deg: hourlyData.wind_direction_10m[i],
+          },
+          dt_txt: new Date(hourlyData.time[i]).toISOString().replace('T', ' ').slice(0, 19)
+        });
       }
-      if (error.response?.status === 404) {
+      
+      return forecast;
+    } catch (error) {
+      console.error('Weather forecast API error:', error.message);
+      if (error.message.includes('not found')) {
         throw new Error(`City "${city}" not found for forecast. Please check the spelling and try again.`);
       }
       // If it's a validation error, throw it as is
       if (!error.response) {
         throw error;
       }
-      throw new Error(`Failed to fetch forecast data for ${city}: ${error.response?.data?.message || error.message}`);
+      throw new Error(`Failed to fetch forecast data for ${city}: ${error.message}`);
     }
   },
 
