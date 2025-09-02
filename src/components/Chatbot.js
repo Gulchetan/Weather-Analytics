@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Bot, User, Loader, MessageCircle, X } from 'lucide-react';
@@ -283,6 +283,13 @@ const Chatbot = ({ isFloating = false, onClose }) => {
   const [showFloatingChat, setShowFloatingChat] = useState(false);
   
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(''); // Use ref to avoid dependency issues
+  const messageInputRef = useRef(null); // Ref for the actual input element
+  
+  // Update ref when inputMessage changes
+  useEffect(() => {
+    inputRef.current = inputMessage;
+  }, [inputMessage]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -290,12 +297,15 @@ const Chatbot = ({ isFloating = false, onClose }) => {
 
   useEffect(scrollToBottom, [messages]);
 
-  const sendMessage = async (messageText = inputMessage) => {
-    if (!messageText.trim() || isLoading) return;
+  const sendMessage = useCallback(async (messageText) => {
+    // Use current inputMessage from ref if no messageText provided
+    const textToSend = messageText || inputRef.current;
+    
+    if (!textToSend.trim() || isLoading) return;
 
     const userMessage = {
       id: Date.now(),
-      text: messageText.trim(),
+      text: textToSend.trim(),
       isUser: true,
       timestamp: new Date()
     };
@@ -309,12 +319,12 @@ const Chatbot = ({ isFloating = false, onClose }) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       
-      const response = await fetch('http://localhost:5000/api/chat', {
+      const response = await fetch('https://chatbot-api-52ir.onrender.com/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message: messageText.trim() }),
+        body: JSON.stringify({ message: textToSend.trim() }),
         signal: controller.signal
       });
       
@@ -365,85 +375,96 @@ const Chatbot = ({ isFloating = false, onClose }) => {
         setIsLoading(false);
       }, 1000);
     }
-  };
+  }, [isLoading]); // Only depend on isLoading
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
+  const handleInputChange = useCallback((e) => {
+    const value = e.target.value;
+    setInputMessage(value);
+    inputRef.current = value;
+  }, []);
+
+  const handleKeyPress = useCallback((e) => {
+    if (e.key === 'Enter' && !isLoading && inputRef.current.trim()) {
       sendMessage();
     }
-  };
+  }, [sendMessage, isLoading]);
 
-  const ChatContent = () => (
-    <>
-      <MessagesContainer>
-        {!isFloating && (
-          <SuggestionChips>
-            {suggestions.map((suggestion, index) => (
-              <SuggestionChip
-                key={index}
-                onClick={() => sendMessage(suggestion)}
-              >
-                {suggestion}
-              </SuggestionChip>
-            ))}
-          </SuggestionChips>
-        )}
-        
-        {messages.map((message) => (
-          <Message
-            key={message.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <MessageIcon isUser={message.isUser}>
-              {message.isUser ? <User size={20} /> : <Bot size={20} />}
-            </MessageIcon>
-            <MessageBubble isUser={message.isUser}>
-              {message.text}
-            </MessageBubble>
-          </Message>
-        ))}
-        
-        {isLoading && (
-          <TypingIndicator
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <MessageIcon isUser={false}>
-              <Bot size={20} />
-            </MessageIcon>
-            <span>Assistant is typing</span>
-            <TypingDots>
-              <span></span>
-              <span></span>
-              <span></span>
-            </TypingDots>
-          </TypingIndicator>
-        )}
-        
-        <div ref={messagesEndRef} />
-      </MessagesContainer>
+  // Separate the input section to prevent re-renders
+  const InputSection = useMemo(() => (
+    <InputContainer>
+      <MessageInput
+        key="chatbot-input" // Fixed key to prevent recreation
+        ref={messageInputRef}
+        type="text"
+        placeholder="Type your message..."
+        value={inputMessage}
+        onChange={handleInputChange}
+        onKeyPress={handleKeyPress}
+        disabled={isLoading}
+        autoComplete="off"
+      />
+      <SendButton
+        onClick={() => sendMessage()}
+        disabled={isLoading || !inputMessage.trim()}
+      >
+        {isLoading ? <Loader size={20} className="animate-spin" /> : <Send size={20} />}
+      </SendButton>
+    </InputContainer>
+  ), [inputMessage, isLoading, handleInputChange, handleKeyPress, sendMessage]);
+  
+  // Messages section
+  const MessagesSection = useMemo(() => (
+    <MessagesContainer>
+      {!isFloating && (
+        <SuggestionChips>
+          {suggestions.map((suggestion, index) => (
+            <SuggestionChip
+              key={index}
+              onClick={() => sendMessage(suggestion)}
+            >
+              {suggestion}
+            </SuggestionChip>
+          ))}
+        </SuggestionChips>
+      )}
       
-      <InputContainer>
-        <MessageInput
-          type="text"
-          placeholder="Type your message..."
-          value={inputMessage}
-          onChange={(e) => setInputMessage(e.target.value)}
-          onKeyPress={handleKeyPress}
-          disabled={isLoading}
-        />
-        <SendButton
-          onClick={() => sendMessage()}
-          disabled={isLoading || !inputMessage.trim()}
+      {messages.map((message) => (
+        <Message
+          key={message.id}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
         >
-          {isLoading ? <Loader size={20} className="animate-spin" /> : <Send size={20} />}
-        </SendButton>
-      </InputContainer>
-    </>
-  );
+          <MessageIcon isUser={message.isUser}>
+            {message.isUser ? <User size={20} /> : <Bot size={20} />}
+          </MessageIcon>
+          <MessageBubble isUser={message.isUser}>
+            {message.text}
+          </MessageBubble>
+        </Message>
+      ))}
+      
+      {isLoading && (
+        <TypingIndicator
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <MessageIcon isUser={false}>
+            <Bot size={20} />
+          </MessageIcon>
+          <span>Assistant is typing</span>
+          <TypingDots>
+            <span></span>
+            <span></span>
+            <span></span>
+          </TypingDots>
+        </TypingIndicator>
+      )}
+      
+      <div ref={messagesEndRef} />
+    </MessagesContainer>
+  ), [messages, isLoading, isFloating, suggestions, sendMessage]);
 
   if (isFloating) {
     return (
@@ -475,7 +496,8 @@ const Chatbot = ({ isFloating = false, onClose }) => {
                   <X size={20} />
                 </CloseButton>
               </FloatingChatHeader>
-              <ChatContent />
+              {MessagesSection}
+              {InputSection}
             </FloatingChatWindow>
           )}
         </AnimatePresence>
@@ -492,7 +514,8 @@ const Chatbot = ({ isFloating = false, onClose }) => {
           <ChatSubtitle>Ask me anything about weather data and analytics</ChatSubtitle>
         </div>
       </ChatHeader>
-      <ChatContent />
+      {MessagesSection}
+      {InputSection}
     </ChatContainer>
   );
 };

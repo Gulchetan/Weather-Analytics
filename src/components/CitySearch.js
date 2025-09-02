@@ -341,32 +341,50 @@ const CitySearch = () => {
     }
   }, [searchTerm]);
 
-  // Handle input change with validation
-  const handleInputChange = (e) => {
+  // Handle input change with debounced validation
+  const handleInputChange = useCallback((e) => {
     const value = e.target.value;
     setSearchTerm(value);
     
-    // Real-time validation
-    if (value.length > 0) {
-      const validation = weatherService.validateCityName(value);
-      if (!validation.valid) {
-        setValidationMessage({ type: 'error', message: validation.error });
-      } else {
-        setValidationMessage(null);
-      }
-    } else {
+    // Clear any existing validation message when typing
+    if (validationMessage && validationMessage.type === 'error') {
       setValidationMessage(null);
     }
-  };
+  }, [validationMessage]);
+  
+  // Debounced validation effect
+  useEffect(() => {
+    if (searchTerm.length === 0) {
+      setValidationMessage(null);
+      return;
+    }
+    
+    // Debounce validation to avoid excessive calls while typing
+    const timeoutId = setTimeout(() => {
+      if (searchTerm.length > 0) {
+        const validation = weatherService.validateCityName(searchTerm);
+        if (!validation.valid) {
+          setValidationMessage({ type: 'error', message: validation.error });
+        } else {
+          setValidationMessage(null);
+        }
+      }
+    }, 300); // 300ms debounce
+    
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
 
   // Search for weather data
-  const searchWeather = useCallback(async (cityName = searchTerm) => {
-    if (!cityName.trim()) {
+  const searchWeather = useCallback(async (cityName) => {
+    // Use current searchTerm if no cityName provided
+    const targetCity = cityName || searchTerm;
+    
+    if (!targetCity.trim()) {
       setValidationMessage({ type: 'error', message: 'Please enter a city name' });
       return;
     }
 
-    const validation = weatherService.validateCityName(cityName);
+    const validation = weatherService.validateCityName(targetCity);
     if (!validation.valid) {
       setValidationMessage({ type: 'error', message: validation.error });
       return;
@@ -377,7 +395,7 @@ const CitySearch = () => {
     setShowSuggestions(false);
 
     try {
-      const data = await weatherService.getCurrentWeather(cityName.trim());
+      const data = await weatherService.getCurrentWeather(targetCity.trim());
       setWeatherData(data);
       setLastSearchedCity(data.name);
       setLastUpdate(new Date());
@@ -399,12 +417,12 @@ const CitySearch = () => {
       setValidationMessage({ type: 'error', message: error.message });
       addNotification({
         type: 'error',
-        message: `Failed to get weather for ${cityName}`,
+        message: `Failed to get weather for ${targetCity}`,
       });
     } finally {
       setLoading('search', false);
     }
-  }, [searchTerm, setLoading, addNotification]);
+  }, [setLoading, addNotification]);
 
   // Refresh current city weather
   const refreshWeather = useCallback(async () => {
@@ -421,7 +439,7 @@ const CitySearch = () => {
   // Handle form submission
   const handleSubmit = (e) => {
     e.preventDefault();
-    searchWeather();
+    searchWeather(searchTerm);
   };
 
   // Handle suggestion click
